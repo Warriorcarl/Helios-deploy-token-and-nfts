@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Token & NFT Deployer</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6">
+  <h1 class="text-2xl font-bold mb-6">🚀 Deploy Your ERC-20 Token & NFT (Helios)</h1>
+
+  <button id="connectWallet" class="mb-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded">🔗 Connect Wallet</button>
+  <p id="walletAddress" class="mb-6 text-sm text-green-400"></p>
+
+  <!-- ERC-20 -->
+  <div class="w-full max-w-md p-6 bg-gray-800 rounded-lg mb-10 shadow-lg">
+    <h2 class="text-xl font-semibold mb-4">🪙 Deploy ERC-20 Token</h2>
+    <input id="tokenName" placeholder="Token Name" class="mb-2 w-full p-2 rounded bg-gray-700 text-white" />
+    <input id="tokenSymbol" placeholder="Token Symbol" class="mb-2 w-full p-2 rounded bg-gray-700 text-white" />
+    <input id="tokenSupply" type="number" placeholder="Total Supply" class="mb-4 w-full p-2 rounded bg-gray-700 text-white" />
+    <button id="deployToken" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded">🚀 Deploy Token</button>
+    <p id="tokenAddress" class="text-sm mt-4 text-yellow-400 break-all"></p>
+  </div>
+
+  <!-- ERC-721 -->
+  <div class="w-full max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
+    <h2 class="text-xl font-semibold mb-4">🖼️ Deploy ERC-721 NFT</h2>
+    <input id="nftName" placeholder="NFT Collection Name" class="mb-2 w-full p-2 rounded bg-gray-700 text-white" />
+    <input id="nftSymbol" placeholder="NFT Symbol" class="mb-4 w-full p-2 rounded bg-gray-700 text-white" />
+    <button id="deployNFT" class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded">🚀 Deploy NFT</button>
+    <p id="nftAddress" class="text-sm mt-4 text-yellow-400 break-all"></p>
+  </div>
+
+  <script>
+    let signer;
+
+    document.getElementById("connectWallet").onclick = async () => {
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        document.getElementById("walletAddress").innerText = "Connected: " + await signer.getAddress();
+      } else {
+        alert("MetaMask not found!");
+      }
+    };
+
+    const ERC20_ABI = [
+      "constructor(string name_, string symbol_, uint256 totalSupply_)",
+      "function name() view returns (string)",
+      "function symbol() view returns (string)",
+      "function totalSupply() view returns (uint256)",
+      "function transfer(address to, uint256 amount) returns (bool)"
+    ];
+
+    const ERC20_BYTECODE = "PASTE_YOUR_ERC20_BYTECODE_HERE"; // <--- Ganti dengan hasil compile
+
+    const ERC721_ABI = [
+      "constructor(string name_, string symbol_)",
+      "function name() view returns (string)",
+      "function symbol() view returns (string)",
+      "function mint(address to, uint256 tokenId)"
+    ];
+
+    const ERC721_BYTECODE = "PASTE_YOUR_ERC721_BYTECODE_HERE"; // <--- Ganti dengan hasil compile
+
+    document.getElementById("deployToken").onclick = async () => {
+      const name = document.getElementById("tokenName").value;
+      const symbol = document.getElementById("tokenSymbol").value;
+      const supply = document.getElementById("tokenSupply").value;
+
+      const factory = new ethers.ContractFactory(ERC20_ABI, ERC20_BYTECODE, signer);
+      const contract = await factory.deploy(name, symbol, ethers.parseUnits(supply, 18));
+      await contract.waitForDeployment();
+
+      document.getElementById("tokenAddress").innerText = "✅ Token deployed at: " + contract.target;
+    };
+
+    document.getElementById("deployNFT").onclick = async () => {
+      const name = document.getElementById("nftName").value;
+      const symbol = document.getElementById("nftSymbol").value;
+
+      const factory = new ethers.ContractFactory(ERC721_ABI, ERC721_BYTECODE, signer);
+      const contract = await factory.deploy(name, symbol);
+      await contract.waitForDeployment();
+
+      document.getElementById("nftAddress").innerText = "✅ NFT deployed at: " + contract.target;
+    };
+  </script>
+</body>
+</html>
