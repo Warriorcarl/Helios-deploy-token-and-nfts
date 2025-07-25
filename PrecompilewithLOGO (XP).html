@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🚀 Helios Chain Token Deployer</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1, h2 {
+      color: #00eaff;
+    }
+    input, button, select {
+      width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #00eaff;
+      color: #000;
+      cursor: pointer;
+      border: none;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #00c4e6;
+    }
+    button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+    }
+    .section {
+      background: #222;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 5px;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #444;
+      font-family: monospace;
+    }
+    #logoPreview {
+      max-width: 200px;
+      max-height: 200px;
+      margin: 10px 0;
+      display: none;
+      border: 2px solid #00eaff;
+      border-radius: 5px;
+    }
+    #logoOptions {
+      margin: 15px 0;
+    }
+    .logo-option {
+      margin: 5px 0;
+    }
+    .status {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .success {
+      background-color: #2e7d32;
+    }
+    .error {
+      background-color: #c62828;
+    }
+    .info {
+      background-color: #1565c0;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    .network-status {
+      margin: 10px 0;
+      padding: 8px;
+      border-radius: 5px;
+      background-color: #333;
+    }
+    .balance-info {
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .explorer-link {
+      color: #00eaff;
+      text-decoration: none;
+    }
+    .explorer-link:hover {
+      text-decoration: underline;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .details-container {
+      background-color: #222;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+    .details-container a {
+      color: #00eaff;
+      text-decoration: none;
+    }
+    .details-container a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🚀 Helios Chain Token Deployer</h1>
+<div id="networkStatus" class="network-status">Network: Not connected</div>
+<div id="balanceInfo" class="balance-info">Balance: -</div>
+<button onclick="connectWallet()">🔗 Connect Wallet</button>
+<p id="walletAddress"></p>
+
+<div class="section">
+  <h2>💸 Token Parameters</h2>
+  <input type="text" id="tokenName" placeholder="Token Name (e.g. My Token)" />
+  <input type="text" id="tokenSymbol" placeholder="Token Symbol (e.g. MYT)" />
+  <input type="number" id="totalSupply" placeholder="Total Supply (e.g. 1000000)" />
+
+  <div id="logoOptions">
+    <h3>🖼️ Token Logo</h3>
+    <select id="logoOption" onchange="toggleLogoOptions()">
+      <option value="none">No logo</option>
+      <option value="upload">Upload image</option>
+      <option value="url">Image URL</option>
+      <option value="generate">Generate logo</option>
+    </select>
+    
+    <div id="uploadOption" class="logo-option" style="display:none;">
+      <input type="file" id="logoUpload" accept="image/*" onchange="handleImageUpload()" />
+    </div>
+    
+    <div id="urlOption" class="logo-option" style="display:none;">
+      <input type="text" id="logoUrl" placeholder="Enter image URL (PNG/JPG)" />
+      <button onclick="fetchImageFromUrl()">Load Image</button>
+    </div>
+    
+    <div id="generateOption" class="logo-option" style="display:none;">
+      <button onclick="generateLogo()">Generate Random Logo</button>
+    </div>
+    
+    <img id="logoPreview" alt="Logo Preview" />
+  </div>
+
+  <button id="deployButton" onclick="deployToken()" disabled>🚀 Deploy Token</button>
+  <div id="status" class="status"></div>
+</div>
+
+<h3>Deployment Details:</h3>
+<div id="deploymentDetails" class="details-container"></div>
+
+<script>
+  // Helios Testnet Configuration
+  const HELIOS_TESTNET = {
+    chainId: "0xa410", // 42000 in hex
+    chainName: "Helios Chain Testnet",
+    nativeCurrency: {
+      name: "Helios",
+      symbol: "HLS",
+      decimals: 18
+    },
+    rpcUrls: ["https://testnet1.helioschainlabs.org"],
+    blockExplorerUrls: ["https://explorer.helioschainlabs.org"],
+    iconUrls: ["https://example.com/helios-icon.png"] // Add actual icon URL if available
+  };
+
+  let provider, signer;
+  const PRECOMPILE_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000806';
+  const EXPLORER_URL = 'https://explorer.helioschainlabs.org';
+  let logoBase64 = '';
+  let currentChainId = null;
+  let walletAddress = '';
+
+  // Initialize the application
+  window.addEventListener('load', async () => {
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', handleChainChanged);
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      await checkNetwork();
+    }
+  });
+
+  // Handle chain changes
+  function handleChainChanged(chainId) {
+    window.location.reload();
+  }
+
+  // Handle account changes
+  function handleAccountsChanged(accounts) {
+    if (accounts.length === 0) {
+      updateStatus("Please connect to MetaMask", "error");
+    } else {
+      walletAddress = accounts[0];
+      document.getElementById("walletAddress").textContent = `Connected: ${walletAddress}`;
+      updateWalletBalance();
+    }
+  }
+
+  // Check and switch to Helios network
+  async function checkNetwork() {
+    if (!window.ethereum) {
+      updateNetworkStatus("MetaMask not installed", "error");
+      return false;
+    }
+
+    try {
+      currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      
+      if (currentChainId !== HELIOS_TESTNET.chainId) {
+        updateNetworkStatus(`Please switch to Helios Testnet`, "error");
+        document.getElementById("deployButton").disabled = true;
+        return false;
+      } else {
+        updateNetworkStatus(`Connected to Helios Testnet`, "success");
+        return true;
+      }
+    } catch (error) {
+      updateNetworkStatus(`Network error: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  // Add Helios network to MetaMask if not present
+  async function addHeliosNetwork() {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [HELIOS_TESTNET]
+      });
+      return true;
+    } catch (error) {
+      updateNetworkStatus(`Failed to add network: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  // Switch to Helios network
+  async function switchToHeliosNetwork() {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: HELIOS_TESTNET.chainId }]
+      });
+      return true;
+    } catch (error) {
+      if (error.code === 4902) {
+        return await addHeliosNetwork();
+      }
+      updateNetworkStatus(`Failed to switch network: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  // Connect wallet and check network
+  async function connectWallet() {
+    try {
+      if (!window.ethereum) {
+        throw new Error("Please install MetaMask!");
+      }
+      
+      updateStatus("Connecting to wallet...", "info");
+      
+      // Request account access
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      walletAddress = accounts[0];
+      
+      // Check if we're on the correct network
+      const onCorrectNetwork = await checkNetwork();
+      if (!onCorrectNetwork) {
+        const switched = await switchToHeliosNetwork();
+        if (!switched) return;
+      }
+      
+      // Initialize ethers provider and signer
+      provider = new ethers.BrowserProvider(window.ethereum);
+      signer = await provider.getSigner();
+      
+      document.getElementById("walletAddress").textContent = `Connected: ${walletAddress}`;
+      document.getElementById("deployButton").disabled = false;
+      updateStatus("Wallet connected successfully!", "success");
+      
+      // Update wallet balance
+      await updateWalletBalance();
+    } catch (error) {
+      updateStatus(`Error: ${error.message}`, "error");
+      console.error(error);
+    }
+  }
+
+  // Update wallet balance display
+  async function updateWalletBalance() {
+    if (!provider || !walletAddress) return;
+    
+    try {
+      const balance = await provider.getBalance(walletAddress);
+      const formattedBalance = ethers.formatEther(balance);
+      document.getElementById("balanceInfo").textContent = `Balance: ${formattedBalance} HLS`;
+    } catch (error) {
+      console.error("Failed to fetch balance:", error);
+      document.getElementById("balanceInfo").textContent = `Balance: Error fetching`;
+    }
+  }
+
+  // Update network status display
+  function updateNetworkStatus(message, type) {
+    const statusDiv = document.getElementById("networkStatus");
+    statusDiv.textContent = `Network: ${message}`;
+    statusDiv.className = `network-status ${type}`;
+  }
+
+  // Toggle logo options based on selection
+  function toggleLogoOptions() {
+    const option = document.getElementById("logoOption").value;
+    document.getElementById("uploadOption").style.display = option === "upload" ? "block" : "none";
+    document.getElementById("urlOption").style.display = option === "url" ? "block" : "none";
+    document.getElementById("generateOption").style.display = option === "generate" ? "block" : "none";
+    
+    if (option === "none") {
+      document.getElementById("logoPreview").style.display = "none";
+      logoBase64 = '';
+    }
+  }
+
+  // Handle image upload
+  function handleImageUpload() {
+    const fileInput = document.getElementById("logoUpload");
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    if (!file.type.match('image.*')) {
+      updateStatus("Please select an image file (PNG, JPG)", "error");
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      processImage(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Fetch image from URL
+  async function fetchImageFromUrl() {
+    const url = document.getElementById("logoUrl").value;
+    
+    if (!url) {
+      updateStatus("Please enter a valid URL", "error");
+      return;
+    }
+    
+    try {
+      updateStatus("Fetching image...", "info");
+      
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+      
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        processImage(e.target.result);
+      };
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      updateStatus(`Error fetching image: ${error.message}`, "error");
+      console.error(error);
+    }
+  }
+
+  // Generate random logo
+  function generateLogo() {
+    const tokenName = document.getElementById("tokenName").value || "TKN";
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 200;
+    const ctx = canvas.getContext("2d");
+    
+    // Random background color
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD'];
+    ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+    ctx.fillRect(0, 0, 200, 200);
+    
+    // Draw token initial
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `bold ${Math.floor(Math.random() * 50 + 80)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tokenName[0].toUpperCase(), 100, 100);
+    
+    // Random shape border
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    if (Math.random() > 0.5) {
+      ctx.arc(100, 100, 80, 0, 2 * Math.PI);
+    } else {
+      ctx.rect(20, 20, 160, 160);
+    }
+    ctx.stroke();
+    
+    // Convert to base64
+    logoBase64 = canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+    document.getElementById("logoPreview").src = canvas.toDataURL("image/png");
+    document.getElementById("logoPreview").style.display = "block";
+    updateStatus("Logo generated successfully!", "success");
+  }
+
+  // Process and resize image
+  function processImage(dataUrl) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 200;
+      canvas.height = 200;
+      const ctx = canvas.getContext("2d");
+      
+      // Draw image centered and scaled to fit 200x200
+      const scale = Math.min(200 / img.width, 200 / img.height);
+      const x = (200 - img.width * scale) / 2;
+      const y = (200 - img.height * scale) / 2;
+      
+      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      
+      // Convert to base64 PNG
+      logoBase64 = canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+      document.getElementById("logoPreview").src = canvas.toDataURL("image/png");
+      document.getElementById("logoPreview").style.display = "block";
+      updateStatus("Image processed successfully!", "success");
+    };
+    img.onerror = function() {
+      updateStatus("Error loading image", "error");
+    };
+    img.src = dataUrl;
+  }
+
+  // Update status message
+  function updateStatus(message, type) {
+    const statusDiv = document.getElementById("status");
+    statusDiv.textContent = message;
+    statusDiv.className = "status " + type;
+    
+    if (type === "info") {
+      statusDiv.innerHTML = `<div class="loading"></div>${message}`;
+    }
+  }
+
+  // Deploy token
+  async function deployToken() {
+    try {
+      const name = document.getElementById("tokenName").value;
+      const symbol = document.getElementById("tokenSymbol").value;
+      const supply = document.getElementById("totalSupply").value;
+      
+      if (!name || !symbol || !supply) {
+        throw new Error("Please fill in all required fields");
+      }
+      
+      if (!provider || !signer) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      // Verify network
+      const onCorrectNetwork = await checkNetwork();
+      if (!onCorrectNetwork) {
+        throw new Error("Please switch to Helios Testnet");
+      }
+      
+      updateStatus("Preparing token deployment...", "info");
+      
+      const abi = [
+        {
+          "inputs": [
+            { "internalType": "string", "name": "name", "type": "string" },
+            { "internalType": "string", "name": "symbol", "type": "string" },
+            { "internalType": "string", "name": "denom", "type": "string" },
+            { "internalType": "uint256", "name": "totalSupply", "type": "uint256" },
+            { "internalType": "uint8", "name": "decimals", "type": "uint8" },
+            { "internalType": "string", "name": "logoBase64", "type": "string" }
+          ],
+          "name": "createErc20",
+          "outputs": [
+            { "internalType": "address", "name": "tokenAddress", "type": "address" }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "creator",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "tokenAddress",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            }
+          ],
+          "name": "ERC20Created",
+          "type": "event"
+        }
+      ];
+
+      const contract = new ethers.Contract(PRECOMPILE_CONTRACT_ADDRESS, abi, signer);
+      
+      const denom = `a${symbol.toLowerCase()}`;
+      const totalSupply = ethers.parseUnits(supply, 18);
+      const decimals = 18;
+      const logoToUse = document.getElementById("logoOption").value === "none" ? "" : logoBase64;
+      
+      updateStatus("Estimating gas...", "info");
+      
+      try {
+        const gasEstimate = await contract.createErc20.estimateGas(
+          name,
+          symbol,
+          denom,
+          totalSupply,
+          decimals,
+          logoToUse
+        );
+        console.log("Gas estimate:", gasEstimate.toString());
+      } catch (estimateError) {
+        console.warn("Gas estimation failed:", estimateError);
+      }
+      
+      updateStatus("Deploying token...", "info");
+      
+      const tx = await contract.createErc20(
+        name,
+        symbol,
+        denom,
+        totalSupply,
+        decimals,
+        logoToUse,
+        { gasLimit: 3000000 }
+      );
+      
+      updateStatus(`Transaction sent! Hash: ${tx.hash}`, "info");
+      
+      const receipt = await tx.wait();
+      
+      // Extract token address from event logs
+      let tokenAddress = null;
+      const iface = new ethers.Interface(abi);
+      
+      for (const log of receipt.logs) {
+        try {
+          const parsedLog = iface.parseLog(log);
+          if (parsedLog && parsedLog.name === "ERC20Created") {
+            tokenAddress = parsedLog.args.tokenAddress;
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      // Prepare explorer links
+      const txLink = `${EXPLORER_URL}/tx/${tx.hash}`;
+      const tokenLink = tokenAddress ? `${EXPLORER_URL}/token/${tokenAddress}` : null;
+      
+      // Format deployment details
+      let details = `✅ Token created successfully!\n\n`;
+      details += `Token Name: ${name}\n`;
+      details += `Token Symbol: ${symbol}\n`;
+      details += `Denom: ${denom}\n`;
+      details += `Total Supply: ${supply} (${totalSupply.toString()} wei)\n`;
+      details += `Decimals: ${decimals}\n`;
+      details += `Token Address: ${tokenAddress || "Not found in logs"}\n`;
+      details += `Transaction Hash: ${tx.hash}\n`;
+      details += `Block Number: ${receipt.blockNumber}\n`;
+      details += `Transaction Explorer: <a href="${txLink}" target="_blank">View Transaction</a>\n`;
+      if (tokenAddress) {
+        details += `Token Explorer: <a href="${tokenLink}" target="_blank">View Token</a>\n`;
+      }
+      if (logoToUse) {
+        details += `Logo: Base64 encoded (${Math.round(logoToUse.length / 1024)} KB)\n`;
+      }
+      
+      // Display details
+      document.getElementById("deploymentDetails").innerHTML = details;
+      
+      updateStatus(`✅ Token deployed${tokenAddress ? ` at ${tokenAddress}` : ''}`, "success");
+      await updateWalletBalance();
+      
+    } catch (error) {
+      let errorMessage = error.message;
+      if (error.info && error.info.error) {
+        errorMessage += `\nRPC Error: ${JSON.stringify(error.info.error)}`;
+      }
+      updateStatus(`Error: ${errorMessage}`, "error");
+      document.getElementById("deploymentDetails").textContent = `Error details:\n${error.stack || error.message}`;
+      console.error(error);
+    }
+  }
+</script>
+</body>
+</html>
